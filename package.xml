@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>joystick_sdl</name>
+  <version>0.0.0</version>
+  <description>A cross-platform joystick node, using SDL.</description>
+  <license>BSD</license>
+  <author email="mpurvis@clearpathrobotics.com">Mike Purvis</author>
+  <maintainer email="mpurvis@clearpathrobotics.com">Mike Purvis</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+</package>
