@@ -1,35 +1,163 @@
+/**
+Software License Agreement (BSD)
+
+\file      joystick.cpp
+\authors   Mike Purvis <mpurvis@clearpathrobotics.com>
+\copyright Copyright (c) 2015, Clearpath Robotics, Inc., All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that
+the following conditions are met:
+ * Redistributions of source code must retain the above copyright notice, this list of conditions and the
+   following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+   following disclaimer in the documentation and/or other materials provided with the distribution.
+ * Neither the name of Clearpath Robotics nor the names of its contributors may be used to endorse or promote
+   products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WAR-
+RANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, IN-
+DIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 #include "SDL_gamecontroller.h"
 #include "SDL.h"
 
-int main(int argc, char *argv[])
+#include "ros/package.h"
+#include "ros/ros.h"
+#include "sensor_msgs/Joy.h"
+
+#include "joystick_sdl/joystick.h"
+
+
+namespace joystick_sdl
+{
+
+/**
+ * Internal members of class. This is the pimpl idiom, and allows more flexibility in adding
+ * parameters later without breaking ABI compatibility, for robots which link TeleopTwistJoy
+ * directly into base nodes.
+ */
+struct Joystick::Impl
+{
+  void timerCallback(const ros::TimerEvent&);
+  void addMappingsFromFile(std::string filename);
+
+  ros::Publisher joy_pub;
+  ros::Timer poll_timer;
+  sensor_msgs::Joy joy_msg;
+
+  int poll_frequency_hz;
+
+  SDL_Joystick* joy_handle;
+  int num_axes;
+  int num_buttons;
+
+  Impl();
+  ~Impl();
+};
+
+Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
+{
+  pimpl_ = new Impl;
+
+  std::string mappings_file;
+  nh_param->param<std::string>("mappings_file", mappings_file,
+     ros::package::getPath("joystick_sdl") + "/mappings/gamecontrollerdb.txt");
+  pimpl_->addMappingsFromFile(mappings_file);
+
+  pimpl_->joy_pub = nh->advertise<sensor_msgs::Joy>("joy", 1, true);
+  nh_param->param<int>("poll_frequency_hz", pimpl_->poll_frequency_hz, 100);
+  ros::Duration poll_period(1.0 / pimpl_->poll_frequency_hz);
+  pimpl_->poll_timer = nh->createTimer(poll_period, &Joystick::Impl::timerCallback, pimpl_);
+  pimpl_->poll_timer.start();
+}
+
+Joystick::Impl::Impl() : joy_handle(NULL)
 {
   if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK))
   {
-    printf("SDL_Init failed.\r\n");
-    return 1;
+    ROS_FATAL("SDL initialization failed. Joystick will not be available.");
+    return;
   }
-  int ret = SDL_GameControllerAddMappingsFromFile("SDL_GameControllerDB/gamecontrollerdb.txt");
-  printf("ret %d\r\n", ret);
-  SDL_JoystickEventState(SDL_DISABLE);
-
-  int num_joy=SDL_NumJoysticks();
-  printf("%d joysticks found\n", num_joy);
-
-  SDL_Joystick* joystick = SDL_JoystickOpen(0);
-  if (joystick == NULL)
+  if (SDL_JoystickEventState(SDL_DISABLE) != 0)
   {
-    printf("Joystick not opened.\r\n");
-    return 1;
+    ROS_FATAL("SDL initialization failed. Joystick will not be available.");
+    return;
   }
+}
 
-  while(true)
+void Joystick::Impl::addMappingsFromFile(std::string filename)
+{
+  int mappings_count = SDL_GameControllerAddMappingsFromFile(filename.c_str());
+  if (mappings_count > 0)
   {
-    SDL_JoystickUpdate();
-    int16_t x = SDL_JoystickGetAxis(joystick, 0);
+    ROS_INFO_STREAM("Added " << mappings_count << " joystick mappings from file: " << filename);
+  }
+  else
+  {
+    ROS_ERROR_STREAM("Unable to add joystick mappings from file: " << filename);
+  }
+}
+/*
+  int joystick_count = SDL_NumJoysticks();
+  if (joystick_count > 0)
+  {
+    ROS_INFO("Found %d joystick(s):", joystick_count);
+    for (int i = 0; i < joystick_count; i++)
+    {
+      ROS_INFO("  %d : %s", i, SDL_GameControllerNameForIndex(i));
+    }
+  }
+  else
+  {
+    ROS_ERROR("No joysticks found.");
+  }
+}*/
 
-    printf("x: %d\r\n", x);
+Joystick::Impl::~Impl()
+{
+  if (joy_handle)
+  {
+    SDL_JoystickClose(joy_handle);
   }
 
   SDL_Quit();
-  return 0;
 }
+
+void Joystick::Impl::timerCallback(const ros::TimerEvent&)
+{
+  if (!joy_handle)
+  {
+    joy_handle = SDL_JoystickOpen(0);
+    if (joy_handle)
+    {
+      ROS_INFO("Successfully connected to %s", SDL_JoystickName(joy_handle));
+      num_axes = SDL_JoystickNumAxes(joy_handle);
+      num_buttons = SDL_JoystickNumButtons(joy_handle);
+      joy_msg.axes.resize(num_axes);
+      joy_msg.buttons.resize(num_buttons);
+    }
+    else
+    {
+      ROS_ERROR("Failed to connect to joystick.");
+      return;
+    }
+  }
+
+  SDL_JoystickUpdate();
+  joy_msg.header.stamp = ros::Time::now();
+
+  for (int axis = 0; axis < num_axes; axis++)
+  {
+    joy_msg.axes[axis] = (SDL_JoystickGetAxis(joy_handle, 0) / 32767.0);
+  }
+
+
+  joy_pub.publish(joy_msg);
+}
+
+}  // namespace joystick_sdl
