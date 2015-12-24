@@ -153,9 +153,14 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
 
   for (int axis = 0; axis < num_axes; axis++)
   {
-    joy_msg.axes[axis] = (SDL_JoystickGetAxis(joy_handle, 0) / 32767.0);
+    //joy_msg.axes[axis] = ((SDL_JoystickGetAxis(joy_handle, axis) - 128.0) / 32767.0);
+    joy_msg.axes[axis] = ((SDL_JoystickGetAxis(joy_handle, axis)));
   }
 
+  for (int button = 0; button < num_buttons; button++)
+  {
+    joy_msg.buttons[button] = SDL_JoystickGetButton(joy_handle, button);
+  }
 
   joy_pub.publish(joy_msg);
 }
