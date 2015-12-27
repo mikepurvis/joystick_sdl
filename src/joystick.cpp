@@ -38,19 +38,23 @@ namespace joystick_sdl
 
 /**
  * Internal members of class. This is the pimpl idiom, and allows more flexibility in adding
- * parameters later without breaking ABI compatibility, for robots which link TeleopTwistJoy
- * directly into base nodes.
+ * parameters later without breaking ABI compatibility, for robots which link directly to the
+ * Joystick class.
  */
 struct Joystick::Impl
 {
   void timerCallback(const ros::TimerEvent&);
   void addMappingsFromFile(std::string filename);
+  double scaleAxis(int32_t unscaled_value);
 
+  ros::Time last_connection_attempt_time;
+  ros::Duration connection_attempt_period;
   ros::Publisher joy_pub;
   ros::Timer poll_timer;
   sensor_msgs::Joy joy_msg;
 
   int poll_frequency_hz;
+  double dead_zone;
 
   SDL_Joystick* joy_handle;
   int num_axes;
@@ -69,6 +73,8 @@ Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
      ros::package::getPath("joystick_sdl") + "/mappings/gamecontrollerdb.txt");
   pimpl_->addMappingsFromFile(mappings_file);
 
+  nh_param->param<double>("dead_zone", pimpl_->dead_zone, 0.05);
+
   pimpl_->joy_pub = nh->advertise<sensor_msgs::Joy>("joy", 1, true);
   nh_param->param<int>("poll_frequency_hz", pimpl_->poll_frequency_hz, 100);
   ros::Duration poll_period(1.0 / pimpl_->poll_frequency_hz);
@@ -76,7 +82,9 @@ Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
   pimpl_->poll_timer.start();
 }
 
-Joystick::Impl::Impl() : joy_handle(NULL)
+Joystick::Impl::Impl() :
+  joy_handle(NULL),
+  connection_attempt_period(1.0)
 {
   if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK))
   {
@@ -102,21 +110,6 @@ void Joystick::Impl::addMappingsFromFile(std::string filename)
     ROS_ERROR_STREAM("Unable to add joystick mappings from file: " << filename);
   }
 }
-/*
-  int joystick_count = SDL_NumJoysticks();
-  if (joystick_count > 0)
-  {
-    ROS_INFO("Found %d joystick(s):", joystick_count);
-    for (int i = 0; i < joystick_count; i++)
-    {
-      ROS_INFO("  %d : %s", i, SDL_GameControllerNameForIndex(i));
-    }
-  }
-  else
-  {
-    ROS_ERROR("No joysticks found.");
-  }
-}*/
 
 Joystick::Impl::~Impl()
 {
@@ -130,8 +123,9 @@ Joystick::Impl::~Impl()
 
 void Joystick::Impl::timerCallback(const ros::TimerEvent&)
 {
-  if (!joy_handle)
+  if (!joy_handle && ros::Time::now() - last_connection_attempt_time > connection_attempt_period)
   {
+    last_connection_attempt_time = ros::Time::now();
     joy_handle = SDL_JoystickOpen(0);
     if (joy_handle)
     {
@@ -153,8 +147,7 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
 
   for (int axis = 0; axis < num_axes; axis++)
   {
-    //joy_msg.axes[axis] = ((SDL_JoystickGetAxis(joy_handle, axis) - 128.0) / 32767.0);
-    joy_msg.axes[axis] = ((SDL_JoystickGetAxis(joy_handle, axis)));
+    joy_msg.axes[axis] = scaleAxis(SDL_JoystickGetAxis(joy_handle, axis));
   }
 
   for (int button = 0; button < num_buttons; button++)
@@ -163,6 +156,23 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
   }
 
   joy_pub.publish(joy_msg);
+}
+
+double Joystick::Impl::scaleAxis(int32_t unscaled_value)
+{
+  if (unscaled_value > 0)
+  {
+    unscaled_value++;
+  }
+
+  double scaled_value = unscaled_value / -32768.0;
+
+  if (std::abs(scaled_value) < dead_zone)
+  {
+    return 0;
+  }
+
+  return scaled_value;
 }
 
 }  // namespace joystick_sdl
