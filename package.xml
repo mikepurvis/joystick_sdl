@@ -2,7 +2,7 @@
 <package format="2">
   <name>joystick_sdl</name>
   <version>0.0.0</version>
-  <description>A cross-platform joystick node, using SDL.</description>
+  <description>A cross-platform joystick node, backed by SDL2.</description>
   <license>BSD</license>
   <author email="mpurvis@clearpathrobotics.com">Mike Purvis</author>
   <maintainer email="mpurvis@clearpathrobotics.com">Mike Purvis</maintainer>
