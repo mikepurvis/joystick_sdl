@@ -8,6 +8,7 @@
   <maintainer email="mpurvis@clearpathrobotics.com">Mike Purvis</maintainer>
 
   <buildtool_depend>catkin</buildtool_depend>
+  <depend>diagnostic_updater</depend>
   <depend>roscpp</depend>
   <depend>roslib</depend>
   <depend>sdl2</depend>

@@ -26,6 +26,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #include "SDL.h"
 #include <string>
 
+#include "diagnostic_updater/diagnostic_updater.h"
 #include "ros/ros.h"
 #include "sensor_msgs/Joy.h"
 
@@ -44,6 +45,7 @@ struct Joystick::Impl
 {
   void timerCallback(const ros::TimerEvent&);
   bool attemptConnection();
+  void diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat);
   void addMappingsFromFile(std::string filename);
   double scaleAxis(int32_t unscaled_value);
 
@@ -52,9 +54,11 @@ struct Joystick::Impl
   ros::Publisher joy_pub;
   ros::Timer poll_timer;
   sensor_msgs::Joy joy_msg;
+  diagnostic_updater::Updater diag_updater;
 
   double deadzone;
 
+  int num_joysticks;
   SDL_Joystick* joy_handle;
   int num_axes;
   int num_buttons;
@@ -85,7 +89,10 @@ Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
 
 Joystick::Impl::Impl() :
   joy_handle(NULL),
-  connection_attempt_period(1.0)
+  connection_attempt_period(1.0),
+  num_joysticks(0),
+  num_axes(0),
+  num_buttons(0)
 {
   if (SDL_Init(0))
   {
@@ -97,6 +104,8 @@ Joystick::Impl::Impl() :
     ROS_FATAL("Setting SDL Joystick event state failed. Joystick will not be available.");
     return;
   }
+
+  diag_updater.add("Connection status", this, &Joystick::Impl::diagnostics);
 }
 
 void Joystick::Impl::addMappingsFromFile(std::string filename)
@@ -124,6 +133,8 @@ Joystick::Impl::~Impl()
 
 void Joystick::Impl::timerCallback(const ros::TimerEvent&)
 {
+  diag_updater.update();
+
   if (!joy_handle)
   {
     // Don't retry connection too frequently.
@@ -160,6 +171,10 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
       joy_msg.buttons[button] = 0;
     }
 
+    diag_updater.setHardwareID("");
+    num_joysticks = 0;
+    num_axes = 0;
+    num_buttons = 0;
     SDL_JoystickClose(joy_handle);
     joy_handle = NULL;
     ROS_ERROR("Joystick disconnected, now attempting reconnection.");
@@ -184,7 +199,7 @@ bool Joystick::Impl::attemptConnection()
     return false;
   }
 
-  int num_joysticks = SDL_NumJoysticks();
+  num_joysticks = SDL_NumJoysticks();
   if (num_joysticks == 0)
   {
     ROS_ERROR("No joystick found. Will look again in 1 second.");
@@ -204,6 +219,11 @@ bool Joystick::Impl::attemptConnection()
     char guid_s[33];
     SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(joy_index), guid_s, sizeof(guid_s));
     ROS_INFO("  %d: %s %s", joy_index, guid_s, SDL_JoystickNameForIndex(joy_index));
+
+    if (joy_index == 0)
+    {
+      diag_updater.setHardwareID(guid_s);
+    }
   }
 
   // TODO(mikepurvis): This story should be improved, either by an option for it connect to all
@@ -217,6 +237,29 @@ bool Joystick::Impl::attemptConnection()
   joy_msg.axes.resize(num_axes);
   joy_msg.buttons.resize(num_buttons);
   return true;
+}
+
+void Joystick::Impl::diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat)
+{
+  if (joy_handle)
+  {
+#if __APPLE__
+    stat.summary(diagnostic_msgs::DiagnosticStatus::OK,
+        "Joystick probably connected (disconnect detection does not work on OS X).");
+#else
+    stat.summary(diagnostic_msgs::DiagnosticStatus::OK, "Joystick connected.");
+#endif
+  }
+  else
+  {
+    stat.summary(diagnostic_msgs::DiagnosticStatus::ERROR, "Joystick not connected.");
+  }
+  stat.add("Number of detected devices", num_joysticks);
+  stat.add("Connected device name", joy_handle ? SDL_JoystickName(joy_handle) : "none");
+  stat.add("Device axes", num_axes);
+  stat.add("Device buttons", num_buttons);
+
+  // TODO(mikepurvis): Add SDL_JoystickPowerLevel, when available (SDL 2.0.4).
 }
 
 double Joystick::Impl::scaleAxis(int32_t unscaled_value)

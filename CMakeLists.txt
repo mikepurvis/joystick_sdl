@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(joystick_sdl)
 
-find_package(catkin REQUIRED COMPONENTS roscpp roslib sensor_msgs)
+find_package(catkin REQUIRED COMPONENTS diagnostic_updater roscpp roslib sensor_msgs)
 
 include(FindPkgConfig)
 pkg_search_module(SDL2 REQUIRED sdl2)
@@ -9,7 +9,7 @@ pkg_search_module(SDL2 REQUIRED sdl2)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp sensor_msgs
+  CATKIN_DEPENDS diagnostic_updater roscpp sensor_msgs
   DEPENDS ${SDL2_LIBRARIES}
 )
 
