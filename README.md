@@ -26,8 +26,18 @@ with the following caveats:
   * Unlike `joy_node`, there's no way to differentiate multiple controllers
     connected to the same computer.
 
+Finally, SDL provides (via the [GameController][3] API, some ability to abstract
+joystick mappings so that disparate units can swap in for each other more
+easily (eg, every device has an "A" button, even if it's the one with an
+X on it on a PlayStation pad). There's some rough-in to support this here,
+but it's unclear how desirable it really is going forward, as most robots
+have a standard joystick they ship with, and a button mapping to match. For
+now, it's unused, as it's more valuable to have this package be a drop-in
+replacement for [joy](http://wiki.ros.org/joy).
+
 This package is under active development. Caveat emptor.
 
 [1]: https://github.com/ros-drivers/joystick_drivers/tree/indigo-devel/joy
 [2]: https://wiki.libsdl.org/CategoryJoystick
+[3]: https://wiki.libsdl.org/CategoryGameController
 
