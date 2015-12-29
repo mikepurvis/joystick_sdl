@@ -149,6 +149,16 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
   }
 
   joy_pub.publish(joy_msg);
+
+
+  if (SDL_JoystickGetAttached(joy_handle))
+  {
+    ROS_INFO("A");
+  }
+  else
+  {
+    ROS_INFO("B");
+  }
 }
 
 bool Joystick::Impl::attemptConnection()
