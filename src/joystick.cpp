@@ -24,6 +24,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 */
 
 #include "SDL.h"
+#include <string>
 
 #include "ros/ros.h"
 #include "sensor_msgs/Joy.h"
@@ -169,7 +170,6 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
 
 bool Joystick::Impl::attemptConnection()
 {
-
   // Must reinitialize the joystick subsystem in order to scan for newly-connected or
   // newly-available devices. Before initializing, must "quit" the subsystem if it was
   // previously initialized.
@@ -206,9 +206,9 @@ bool Joystick::Impl::attemptConnection()
     ROS_INFO("  %d: %s %s", joy_index, guid_s, SDL_JoystickNameForIndex(joy_index));
   }
 
-  // TODO: This story should be improved, either by an option for it connect to all available devices,
-  // or a way to differentiate multiple connected ones. At the very least, we could allow the user to
-  // specify a string to match against the joystick name.
+  // TODO(mikepurvis): This story should be improved, either by an option for it connect to all
+  // available devices, or a way to differentiate multiple connected ones. At the very least, we
+  // could allow the user to specify a string to match against the joystick name.
   ROS_WARN_COND(num_joysticks > 1, "Connecting to first joystick found.");
 
   ROS_INFO("Successfully connected to %s", SDL_JoystickName(joy_handle));
