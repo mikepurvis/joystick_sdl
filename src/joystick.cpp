@@ -138,35 +138,47 @@ void Joystick::Impl::timerCallback(const ros::TimerEvent&)
   SDL_JoystickUpdate();
   joy_msg.header.stamp = ros::Time::now();
 
-  for (int axis = 0; axis < num_axes; axis++)
-  {
-    joy_msg.axes[axis] = scaleAxis(SDL_JoystickGetAxis(joy_handle, axis));
-  }
-
-  for (int button = 0; button < num_buttons; button++)
-  {
-    joy_msg.buttons[button] = SDL_JoystickGetButton(joy_handle, button);
-  }
-
-  joy_pub.publish(joy_msg);
-
-
   if (SDL_JoystickGetAttached(joy_handle))
   {
-    ROS_INFO("A");
+    // Joystick operating normally.
+    for (int axis = 0; axis < num_axes; axis++)
+    {
+      joy_msg.axes[axis] = scaleAxis(SDL_JoystickGetAxis(joy_handle, axis));
+    }
+
+    for (int button = 0; button < num_buttons; button++)
+    {
+      joy_msg.buttons[button] = SDL_JoystickGetButton(joy_handle, button);
+    }
   }
   else
   {
-    ROS_INFO("B");
+    // Joystick is disconnected. Send a final message with all buttons
+    // shown un-pressed. This "releases" any deadman button presses.
+    for (int button = 0; button < num_buttons; button++)
+    {
+      joy_msg.buttons[button] = 0;
+    }
+
+    SDL_JoystickClose(joy_handle);
+    joy_handle = NULL;
+    ROS_ERROR("Joystick disconnected, now attempting reconnection.");
   }
+
+  joy_pub.publish(joy_msg);
 }
 
 bool Joystick::Impl::attemptConnection()
 {
+
   // Must reinitialize the joystick subsystem in order to scan for newly-connected or
-  // newly-available devices. Once initialized, it's essential to "quit" the subsystem
-  // once we're through with this connection attempt, or the next initialization will
-  // be a no-op.
+  // newly-available devices. Before initializing, must "quit" the subsystem if it was
+  // previously initialized.
+  if (SDL_WasInit(SDL_INIT_JOYSTICK) != 0)
+  {
+    SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+  }
+
   if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) != 0)
   {
     ROS_ERROR("Unable to initialize SDL joystick subsystem. Will try again in 1 second.");
@@ -177,7 +189,6 @@ bool Joystick::Impl::attemptConnection()
   if (num_joysticks == 0)
   {
     ROS_ERROR("No joystick found. Will look again in 1 second.");
-    SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     return false;
   }
 
@@ -185,7 +196,6 @@ bool Joystick::Impl::attemptConnection()
   if (!joy_handle)
   {
     ROS_ERROR("Failed to connect to joystick. Will try again in 1 second.");
-    SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     return false;
   }
 
