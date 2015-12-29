@@ -1,4 +1,4 @@
-joystick_sdl
+joystick_sdl [![Build Status](https://travis-ci.org/mikepurvis/joystick_sdl.svg?branch=master)](https://travis-ci.org/mikepurvis/joystick_sdl)
 ============
 
 One of the limitations of the standard ROS [joy][1] package is that it
