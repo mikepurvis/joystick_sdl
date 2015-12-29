@@ -54,8 +54,7 @@ struct Joystick::Impl
   ros::Timer poll_timer;
   sensor_msgs::Joy joy_msg;
 
-  int poll_frequency_hz;
-  double dead_zone;
+  double deadzone;
 
   SDL_Joystick* joy_handle;
   int num_axes;
@@ -74,11 +73,13 @@ Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
      ros::package::getPath("joystick_sdl") + "/mappings/gamecontrollerdb.txt");
   pimpl_->addMappingsFromFile(mappings_file);*/
 
-  nh_param->param<double>("dead_zone", pimpl_->dead_zone, 0.05);
+  nh_param->param<double>("deadzone", pimpl_->deadzone, 0.05);
 
   pimpl_->joy_pub = nh->advertise<sensor_msgs::Joy>("joy", 1, true);
-  nh_param->param<int>("poll_frequency_hz", pimpl_->poll_frequency_hz, 100);
-  ros::Duration poll_period(1.0 / pimpl_->poll_frequency_hz);
+
+  int poll_rate;
+  nh_param->param<int>("poll_rate", poll_rate, 25);
+  ros::Duration poll_period(1.0 / poll_rate);
   pimpl_->poll_timer = nh->createTimer(poll_period, &Joystick::Impl::timerCallback, pimpl_);
   pimpl_->poll_timer.start();
 }
@@ -229,7 +230,7 @@ double Joystick::Impl::scaleAxis(int32_t unscaled_value)
 
   double scaled_value = unscaled_value / -32768.0;
 
-  if (std::abs(scaled_value) < dead_zone)
+  if (std::abs(scaled_value) < deadzone)
   {
     return 0;
   }
