@@ -23,10 +23,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCL
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "SDL_gamecontroller.h"
 #include "SDL.h"
 
-#include "ros/package.h"
 #include "ros/ros.h"
 #include "sensor_msgs/Joy.h"
 
@@ -68,10 +66,10 @@ Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
 {
   pimpl_ = new Impl;
 
-  /*std::string mappings_file;
-  nh_param->param<std::string>("mappings_file", mappings_file,
-     ros::package::getPath("joystick_sdl") + "/mappings/gamecontrollerdb.txt");
-  pimpl_->addMappingsFromFile(mappings_file);*/
+  // std::string mappings_file;
+  // nh_param->param<std::string>("mappings_file", mappings_file,
+  //   ros::package::getPath("joystick_sdl") + "/mappings/gamecontrollerdb.txt");
+  // pimpl_->addMappingsFromFile(mappings_file);
 
   nh_param->param<double>("deadzone", pimpl_->deadzone, 0.05);
 
@@ -88,14 +86,14 @@ Joystick::Impl::Impl() :
   joy_handle(NULL),
   connection_attempt_period(1.0)
 {
-  if (SDL_Init(0)) //SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK))
+  if (SDL_Init(0))
   {
     ROS_FATAL("SDL initialization failed. Joystick will not be available.");
     return;
   }
   if (SDL_JoystickEventState(SDL_DISABLE) != 0)
   {
-    ROS_FATAL("SDL initialization failed. Joystick will not be available.");
+    ROS_FATAL("Setting SDL Joystick event state failed. Joystick will not be available.");
     return;
   }
 }
