@@ -179,10 +179,18 @@ bool Joystick::Impl::attemptConnection()
     return false;
   }
 
-  if (num_joysticks > 1)
+  ROS_INFO("Found %d joystick(s):", num_joysticks);
+  for (int joy_index = 0; joy_index < num_joysticks; joy_index++)
   {
-    ROS_WARN("Found %d joysticks. Connected arbitrarily to the first joystick found.", num_joysticks);
+    char guid_s[33];
+    SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(joy_index), guid_s, sizeof(guid_s));
+    ROS_INFO("  %d: %s %s", joy_index, guid_s, SDL_JoystickNameForIndex(joy_index));
   }
+
+  // TODO: This story should be improved, either by an option for it connect to all available devices,
+  // or a way to differentiate multiple connected ones. At the very least, we could allow the user to
+  // specify a string to match against the joystick name.
+  ROS_WARN_COND(num_joysticks > 1, "Connecting to first joystick found.");
 
   ROS_INFO("Successfully connected to %s", SDL_JoystickName(joy_handle));
   num_axes = SDL_JoystickNumAxes(joy_handle);
