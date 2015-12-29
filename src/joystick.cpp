@@ -68,10 +68,10 @@ Joystick::Joystick(ros::NodeHandle* nh, ros::NodeHandle* nh_param)
 {
   pimpl_ = new Impl;
 
-  std::string mappings_file;
+  /*std::string mappings_file;
   nh_param->param<std::string>("mappings_file", mappings_file,
      ros::package::getPath("joystick_sdl") + "/mappings/gamecontrollerdb.txt");
-  pimpl_->addMappingsFromFile(mappings_file);
+  pimpl_->addMappingsFromFile(mappings_file);*/
 
   nh_param->param<double>("dead_zone", pimpl_->dead_zone, 0.05);
 
@@ -86,7 +86,7 @@ Joystick::Impl::Impl() :
   joy_handle(NULL),
   connection_attempt_period(1.0)
 {
-  if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK))
+  if (SDL_Init(0)) //SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK))
   {
     ROS_FATAL("SDL initialization failed. Joystick will not be available.");
     return;
@@ -123,23 +123,52 @@ Joystick::Impl::~Impl()
 
 void Joystick::Impl::timerCallback(const ros::TimerEvent&)
 {
-  if (!joy_handle && ros::Time::now() - last_connection_attempt_time > connection_attempt_period)
+  if (!joy_handle)
   {
-    last_connection_attempt_time = ros::Time::now();
-    joy_handle = SDL_JoystickOpen(0);
-    if (joy_handle)
+    if (ros::Time::now() - last_connection_attempt_time < connection_attempt_period)
     {
-      ROS_INFO("Successfully connected to %s", SDL_JoystickName(joy_handle));
-      num_axes = SDL_JoystickNumAxes(joy_handle);
-      num_buttons = SDL_JoystickNumButtons(joy_handle);
-      joy_msg.axes.resize(num_axes);
-      joy_msg.buttons.resize(num_buttons);
-    }
-    else
-    {
-      ROS_ERROR("Failed to connect to joystick.");
+      // Don't retry connection too frequently.
       return;
     }
+
+    last_connection_attempt_time = ros::Time::now();
+
+    // Must reinitialize the joystick subsystem in order to scan for newly-connected or
+    // newly-available devices. Once initialized, it's essential to "quit" the subsystem
+    // once we're through with this connection attempt, or the next initialization will
+    // be a no-op.
+    if (SDL_InitSubSystem(SDL_INIT_JOYSTICK) != 0)
+    {
+      ROS_ERROR("Unable to initialize SDL joystick subsystem. Will try again in 1 second.");
+      return;
+    }
+
+    int num_joysticks = SDL_NumJoysticks();
+    if (num_joysticks == 0)
+    {
+      ROS_ERROR("No joystick found. Will look again in 1 second.");
+      SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+      return;
+    }
+
+    joy_handle = SDL_JoystickOpen(0);
+    if (!joy_handle)
+    {
+      ROS_ERROR("Failed to connect to joystick. Will try again in 1 second.");
+      SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+      return;
+    }
+
+    if (num_joysticks > 1)
+    {
+      ROS_WARN("Found %d joysticks. Connected arbitrarily to the first joystick found.", num_joysticks);
+    }
+
+    ROS_INFO("Successfully connected to %s", SDL_JoystickName(joy_handle));
+    num_axes = SDL_JoystickNumAxes(joy_handle);
+    num_buttons = SDL_JoystickNumButtons(joy_handle);
+    joy_msg.axes.resize(num_axes);
+    joy_msg.buttons.resize(num_buttons);
   }
 
   SDL_JoystickUpdate();
