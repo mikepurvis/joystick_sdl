@@ -13,7 +13,7 @@ with the following caveats:
 
   * For Mac OS X, the F710 must be in DirectInput mode ("D" on the top switch).
   * Detecting disconnects does _not_ work under OS X. SDL 2.0.4 fixes the
-    issue, which you can upgrade to with `brew reinstall sdl2 --HEAD`.
+    issue, which you can upgrade to with `brew reinstall sdl2 --devel`.
   * Analog triggers don't work, nor does motion control or force feedback
     (SDL limitations). Triggers register as ordinary binary button presses.
   * No attempt is made to expose "hats" or "balls" from the SDL API.
