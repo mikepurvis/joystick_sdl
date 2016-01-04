@@ -48,6 +48,7 @@ struct Joystick::Impl
   void diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat);
   void addMappingsFromFile(std::string filename);
   double scaleAxis(int32_t unscaled_value);
+  const char* getPowerLevel(SDL_Joystick* joy_handle);
 
   ros::Time last_connection_attempt_time;
   ros::Duration connection_attempt_period;
@@ -258,8 +259,7 @@ void Joystick::Impl::diagnostics(diagnostic_updater::DiagnosticStatusWrapper &st
   stat.add("Connected device name", joy_handle ? SDL_JoystickName(joy_handle) : "none");
   stat.add("Device axes", num_axes);
   stat.add("Device buttons", num_buttons);
-
-  // TODO(mikepurvis): Add SDL_JoystickPowerLevel, when available (SDL 2.0.4).
+  stat.add("Device power level", joy_handle ? getPowerLevel(joy_handle) : "");
 }
 
 double Joystick::Impl::scaleAxis(int32_t unscaled_value)
@@ -277,6 +277,31 @@ double Joystick::Impl::scaleAxis(int32_t unscaled_value)
   }
 
   return scaled_value;
+}
+
+const char* Joystick::Impl::getPowerLevel(SDL_Joystick* joy_handle)
+{
+#ifdef SDL2_ENABLE_JOYSTICK_POWER_LEVEL
+  switch (SDL_JoystickCurrentPowerLevel(joy_handle))
+  {
+    case SDL_JOYSTICK_POWER_UNKNOWN:
+      return "unknown";
+    case SDL_JOYSTICK_POWER_EMPTY:
+      return "empty";
+    case SDL_JOYSTICK_POWER_LOW:
+      return "low";
+    case SDL_JOYSTICK_POWER_MEDIUM:
+      return "medium";
+    case SDL_JOYSTICK_POWER_FULL:
+      return "full";
+    case SDL_JOYSTICK_POWER_WIRED:
+      return "wired";
+    case SDL_JOYSTICK_POWER_MAX:
+      return "max";
+  }
+#else
+  return "unsupported";
+#endif
 }
 
 }  // namespace joystick_sdl

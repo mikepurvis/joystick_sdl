@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS diagnostic_updater roscpp roslib sensor_
 
 include(FindPkgConfig)
 pkg_search_module(SDL2 REQUIRED sdl2)
+pkg_check_modules(SDL204 sdl2>=2.0.4)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -21,6 +22,9 @@ include_directories(
 
 add_library(${PROJECT_NAME} src/joystick)
 target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES} ${catkin_LIBRARIES})
+if(SDL204_FOUND)
+  set_property(TARGET ${PROJECT_NAME} PROPERTY COMPILE_DEFINITIONS SDL2_ENABLE_JOYSTICK_POWER_LEVEL)
+endif()
 
 add_executable(${PROJECT_NAME}_node src/joystick_node)
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME} ${SDL2_LIBRARIES} ${catkin_LIBRARIES})
